@@ -27,7 +27,7 @@ class avito_parser:
             params['p'] = page
         url = 'https://www.avito.ru/sankt-peterburg/kollektsionirovanie/monety-ASgBAgICAUQcmgE'
         r = self.session.get(url, params=params)
-        return r.text
+        return r.text#отправляем конечный вариант ссылки
     @staticmethod
     def parse_date(item: str):
         params = item.strip().split(' ')
@@ -71,7 +71,7 @@ class avito_parser:
             time = datetime.datetime.strptime(time, '%H:%M').time()
             return datetime.datetime(day=day, month=month, year=today.year, hour=time.hour, minute=time.minute)
 
-    def parse_block(self, item):
+    def parse_block(self, item):#парсим название ссылку валюту цену
         url_block = item.select_one('div.iva-item-titleStep-_CxvN')
         # print(url_block)
         href = url_block.select_one('a.link-link-MbQDP.link-design-default-_nSbv.title-root-j7cja.iva-item-title-_qCwt.title-listRedesign-XHq38.title-root_maxHeight-SXHes')
@@ -109,7 +109,7 @@ class avito_parser:
         con = sql.create_table()
         text = self.get_page(page=1)
         soup = bs4.BeautifulSoup(text, 'lxml')
-        pagin = soup.select('div.pagination-root-Ntd_O')
+        pagin = soup.select('div.pagination-root-Ntd_O')#парсим количесво страниц в поиске
         if pagin is not None:
             for p in pagin:
                 lst = p.contents
@@ -117,13 +117,13 @@ class avito_parser:
                 f = f[f.find('(') + 1:f.find(')')]
                 f = int(f)
                 for j in range(2, f + 2):
-                    container = soup.select('div.iva-item-content-UnQQ4')
+                    container = soup.select('div.iva-item-content-UnQQ4')#парсим блоки с объявлениями
                     # container = container.select('div.iva-item-root-Nj_hb.photo-slider-slider-_PvpN.iva-item-list-H_dpX.iva-item-redesign-nV4C4.iva-item-responsive-gIKjW.items-item-My3ih.items-listItem-Gd1jN.js-catalog-item-enum')
                     # container = container.select('div.iva-item-content-UnQQ4')
                     for item in container:
                         block = self.parse_block(item=item)
                         if block.title is not None:
-                            sql.execute_query_for_val(con, block)
+                            sql.execute_query_for_val(con, block)#заполняем базу
                         print(block)
                     text = self.get_page(page=j)
                     soup = bs4.BeautifulSoup(text, 'lxml')
