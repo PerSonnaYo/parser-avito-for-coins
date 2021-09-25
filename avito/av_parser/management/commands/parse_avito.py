@@ -1,9 +1,10 @@
 import datetime
 from collections import namedtuple
 import bs4
-import sql
-import requests
 
+import requests
+from django.core.management.base import BaseCommand
+from av_parser.models import Product
 print_tuple = namedtuple('Block', 'title,price,currency,date,url')
 
 class Block(print_tuple):
@@ -27,7 +28,7 @@ class avito_parser:
             params['p'] = page
         url = 'https://www.avito.ru/sankt-peterburg/kollektsionirovanie/monety-ASgBAgICAUQcmgE'
         r = self.session.get(url, params=params)
-        return r.text#отправляем конечный вариант ссылки
+        return r.text
     @staticmethod
     def parse_date(item: str):
         params = item.strip().split(' ')
@@ -71,7 +72,7 @@ class avito_parser:
             time = datetime.datetime.strptime(time, '%H:%M').time()
             return datetime.datetime(day=day, month=month, year=today.year, hour=time.hour, minute=time.minute)
 
-    def parse_block(self, item):#парсим название ссылку валюту цену
+    def parse_block(self, item):
         url_block = item.select_one('div.iva-item-titleStep-_CxvN')
         # print(url_block)
         href = url_block.select_one('a.link-link-MbQDP.link-design-default-_nSbv.title-root-j7cja.iva-item-title-_qCwt.title-listRedesign-XHq38.title-root_maxHeight-SXHes')
@@ -98,6 +99,23 @@ class avito_parser:
         time = item.select_one('div.date-text-VwmJG.text-text-LurtD.text-size-s-BxGpL.text-color-noaccent-P1Rfs')
         time = self.parse_date(time.text)
         # print(time)
+        if title is not None:
+            try:
+                price = int(price)
+                try:
+                    p = Product.objects.get(url=url)
+                    p.title = title
+                    p.price = price
+                    p.save()
+                except Product.DoesNotExist:
+                    p = Product(
+                        url=url,
+                        title=title,
+                        price=price,
+                    ).save()
+                print(f'product{p}')
+            except:
+                x = 0
         return Block(
             url=url,
             title=title,
@@ -106,10 +124,9 @@ class avito_parser:
             date=time,
         )
     def get_blocks(self):
-        con = sql.create_table()
         text = self.get_page(page=1)
         soup = bs4.BeautifulSoup(text, 'lxml')
-        pagin = soup.select('div.pagination-root-Ntd_O')#парсим количесво страниц в поиске
+        pagin = soup.select('div.pagination-root-Ntd_O')
         if pagin is not None:
             for p in pagin:
                 lst = p.contents
@@ -117,13 +134,12 @@ class avito_parser:
                 f = f[f.find('(') + 1:f.find(')')]
                 f = int(f)
                 for j in range(2, f + 2):
-                    container = soup.select('div.iva-item-content-UnQQ4')#парсим блоки с объявлениями
+                    container = soup.select('div.iva-item-content-UnQQ4')
                     # container = container.select('div.iva-item-root-Nj_hb.photo-slider-slider-_PvpN.iva-item-list-H_dpX.iva-item-redesign-nV4C4.iva-item-responsive-gIKjW.items-item-My3ih.items-listItem-Gd1jN.js-catalog-item-enum')
                     # container = container.select('div.iva-item-content-UnQQ4')
                     for item in container:
                         block = self.parse_block(item=item)
-                        if block.title is not None:
-                            sql.execute_query_for_val(con, block)#заполняем базу
+                        # if block.title is not None:
                         print(block)
                     text = self.get_page(page=j)
                     soup = bs4.BeautifulSoup(text, 'lxml')
@@ -134,13 +150,12 @@ class avito_parser:
             # container = container.select('div.iva-item-content-UnQQ4')
             for item in container:
                 block = self.parse_block(item=item)
-                if block.title is not None:
-                    sql.execute_query_for_val(con, block)
+                # if block.title is not None:
                 print(block)
 
-def main():
-    p = avito_parser()
-    p.get_blocks()
+class Command(BaseCommand):
+    help = 'Парсинг Авито'
 
-if __name__ == '__main__':
-    main()
+    def handle(self, *args, **options):
+        p = avito_parser()
+        p.get_blocks()
