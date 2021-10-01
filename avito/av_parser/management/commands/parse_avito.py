@@ -1,15 +1,17 @@
 import datetime
-from collections import namedtuple
+# from collections import namedtuple
 import bs4
-
+from logging import getLogger
 import requests
 from django.core.management.base import BaseCommand
+from django.core.management.base import CommandError
 from av_parser.models import Product
-print_tuple = namedtuple('Block', 'title,price,currency,date,url')
+# print_tuple = namedtuple('Block', 'title,price,currency,date,url')
 
-class Block(print_tuple):
-    def __str__(self):
-        return f'{self.title}\t{self.price}\t{self.currency}\t{self.date}\t{self.url}'
+logger = getLogger(__name__)
+# class Block(print_tuple):
+#     def __str__(self):
+#         return f'{self.title}\t{self.price}\t{self.currency}\t{self.date}\t{self.url}'
 class avito_parser:
     def __init__(self):
         self.session = requests.Session()
@@ -42,7 +44,7 @@ class avito_parser:
             elif time[0] == 'н':
                 date = datetime.datetime.today() - datetime.timedelta(days=day * 7)
             else:
-                print("Ошибка  в дате\n")
+                logger.error("Ошибка  в дате\n")
                 return
             date = str(date)
             u = date.split(" ")
@@ -66,7 +68,7 @@ class avito_parser:
             }
             month = month_mas.get(month1)
             if not month:
-                print("Ошибка  в дате\n")
+                logger.error("Ошибка  в дате\n")
                 return
             today = datetime.datetime.today()
             time = datetime.datetime.strptime(time, '%H:%M').time()
@@ -113,16 +115,9 @@ class avito_parser:
                         title=title,
                         price=price,
                     ).save()
-                print(f'product{p}')
+                logger.debug(f'product{p}')
             except:
                 x = 0
-        return Block(
-            url=url,
-            title=title,
-            price=price,
-            currency=currency,
-            date=time,
-        )
     def get_blocks(self):
         text = self.get_page(page=1)
         soup = bs4.BeautifulSoup(text, 'lxml')
@@ -135,12 +130,12 @@ class avito_parser:
                 f = int(f)
                 for j in range(2, f + 2):
                     container = soup.select('div.iva-item-content-UnQQ4')
+                    if container is None:
+                        raise CommandError("bad product block")
                     # container = container.select('div.iva-item-root-Nj_hb.photo-slider-slider-_PvpN.iva-item-list-H_dpX.iva-item-redesign-nV4C4.iva-item-responsive-gIKjW.items-item-My3ih.items-listItem-Gd1jN.js-catalog-item-enum')
                     # container = container.select('div.iva-item-content-UnQQ4')
                     for item in container:
-                        block = self.parse_block(item=item)
-                        # if block.title is not None:
-                        print(block)
+                        self.parse_block(item=item)
                     text = self.get_page(page=j)
                     soup = bs4.BeautifulSoup(text, 'lxml')
         else:
@@ -149,9 +144,7 @@ class avito_parser:
             # container = container.select('div.iva-item-root-Nj_hb.photo-slider-slider-_PvpN.iva-item-list-H_dpX.iva-item-redesign-nV4C4.iva-item-responsive-gIKjW.items-item-My3ih.items-listItem-Gd1jN.js-catalog-item-enum')
             # container = container.select('div.iva-item-content-UnQQ4')
             for item in container:
-                block = self.parse_block(item=item)
-                # if block.title is not None:
-                print(block)
+                self.parse_block(item=item)
 
 class Command(BaseCommand):
     help = 'Парсинг Авито'
